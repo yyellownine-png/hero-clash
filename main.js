@@ -1,6 +1,6 @@
 const app = document.getElementById("app");
 
-const SAVE_KEY = "hero_clash_save";
+const SAVE_KEY = "hero_clash_v3";
 
 const heroes = {
   lumi: {
@@ -8,85 +8,127 @@ const heroes = {
     emoji: "✨",
     rarity: "LEGENDARY",
     color: "#b56cff",
-    basePower: 145,
-    skills: ["Световой удар", "Звёздный щит", "Вспышка", "Небесный луч"]
+    power: 150,
+    skills: [
+      "Световой удар",
+      "Звёздный щит",
+      "Вспышка",
+      "Небесный луч"
+    ]
   },
+
   roxy: {
     name: "Рокси",
     emoji: "🔥",
     rarity: "EPIC",
     color: "#ff5c8a",
-    basePower: 125,
-    skills: ["Огненный выстрел", "Пламя", "Берсерк", "Метеор"]
+    power: 130,
+    skills: [
+      "Огненный выстрел",
+      "Пламя",
+      "Берсерк",
+      "Метеор"
+    ]
   },
+
   nox: {
     name: "Нокс",
     emoji: "🌑",
     rarity: "EPIC",
     color: "#6577ff",
-    basePower: 118,
-    skills: ["Теневой удар", "Тьма", "Поглощение", "Бездна"]
+    power: 122,
+    skills: [
+      "Теневой удар",
+      "Тьма",
+      "Поглощение",
+      "Бездна"
+    ]
   },
+
   blitz: {
     name: "Блиц",
     emoji: "⚡",
     rarity: "RARE",
     color: "#ffd447",
-    basePower: 105,
-    skills: ["Разряд", "Импульс", "Шок", "Молния"]
+    power: 110,
+    skills: [
+      "Разряд",
+      "Импульс",
+      "Шок",
+      "Молния"
+    ]
   }
 };
 
-const zones = [
+const worlds = [
   {
+    id: 0,
     name: "Неоновый лес",
     icon: "🌲",
-    level: 1,
     color: "#a855f7",
-    enemy: "Неоновый зверь"
+    level: 1,
+    boss: "Неоновый зверь",
+    bossIcon: "🐺"
   },
+
   {
+    id: 1,
     name: "Золотая пустыня",
     icon: "🏜️",
-    level: 5,
     color: "#f59e0b",
-    enemy: "Песчаный голем"
+    level: 5,
+    boss: "Песчаный голем",
+    bossIcon: "🗿"
   },
+
   {
+    id: 2,
     name: "Ледяное королевство",
     icon: "❄️",
-    level: 10,
     color: "#38bdf8",
-    enemy: "Ледяной страж"
+    level: 10,
+    boss: "Ледяной страж",
+    bossIcon: "👾"
   },
+
   {
+    id: 3,
     name: "Лавовый мир",
     icon: "🌋",
-    level: 15,
     color: "#ef4444",
-    enemy: "Лавовый титан"
+    level: 15,
+    boss: "Лавовый титан",
+    bossIcon: "👹"
   },
+
   {
+    id: 4,
     name: "Космический город",
     icon: "🌌",
-    level: 20,
     color: "#8b5cf6",
-    enemy: "Космо-колосс"
+    level: 20,
+    boss: "Космо-колосс",
+    bossIcon: "👽"
   }
 ];
 
 const defaultState = {
   coins: 12480,
   gems: 24,
-  energy: 8,
+
+  energy: 12,
   maxEnergy: 20,
 
+  level: 12,
   xp: 240,
   xpNeeded: 300,
-  level: 12,
 
-  zone: 0,
-  stage: 3,
+  currentWorld: 0,
+  currentStage: 1,
+
+  unlockedWorld: 0,
+
+  completedStages: {},
 
   wins: 0,
   battles: 0,
@@ -107,36 +149,60 @@ let state = loadState();
 let battleState = {
   enemyHp: 0,
   enemyMaxHp: 0,
+
   teamHp: 100,
+  maxTeamHp: 100,
+
+  cooldowns: [0, 0, 0, 0],
+
   turn: true,
-  skillCooldowns: [0, 0, 0, 0],
-  battleOver: false
+  finished: false
 };
+
+/* =========================
+   SAVE
+========================= */
 
 function loadState() {
   try {
-    const saved = localStorage.getItem(SAVE_KEY);
+    const saved = JSON.parse(
+      localStorage.getItem(SAVE_KEY)
+    );
 
     if (!saved) {
-      return JSON.parse(JSON.stringify(defaultState));
+      return structuredClone(defaultState);
     }
 
     return {
       ...defaultState,
-      ...JSON.parse(saved),
+      ...saved,
+
       heroLevels: {
         ...defaultState.heroLevels,
-        ...(JSON.parse(saved).heroLevels || {})
+        ...(saved.heroLevels || {})
+      },
+
+      completedStages: {
+        ...defaultState.completedStages,
+        ...(saved.completedStages || {})
       }
     };
+
   } catch {
-    return JSON.parse(JSON.stringify(defaultState));
+    return structuredClone(defaultState);
   }
 }
 
 function saveState() {
-  localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+  localStorage.setItem(
+    SAVE_KEY,
+    JSON.stringify(state)
+  );
 }
+
+/* =========================
+   HELPERS
+========================= */
 
 function money(value) {
   return Number(value).toLocaleString("ru-RU");
@@ -147,95 +213,213 @@ function heroLevel(id) {
 }
 
 function heroPower(id) {
-  const hero = heroes[id];
-  return hero.basePower + heroLevel(id) * 18;
+  return heroes[id].power +
+    heroLevel(id) * 18;
 }
 
 function totalPower() {
-  return Object.keys(heroes).reduce((sum, id) => {
-    return sum + heroPower(id);
-  }, 0);
+  return Object.keys(heroes)
+    .reduce(
+      (sum, id) => sum + heroPower(id),
+      0
+    );
+}
+
+function stageKey(world, stage) {
+  return `${world}_${stage}`;
+}
+
+function isStageCompleted(world, stage) {
+  return !!state.completedStages[
+    stageKey(world, stage)
+  ];
+}
+
+function stageUnlocked(world, stage) {
+
+  if (world === 0 && stage === 1) {
+    return true;
+  }
+
+  if (stage > 1) {
+    return isStageCompleted(
+      world,
+      stage - 1
+    );
+  }
+
+  return state.level >= worlds[world].level;
 }
 
 function addXP(amount) {
+
   state.xp += amount;
 
   while (state.xp >= state.xpNeeded) {
-    state.xp -= state.xpNeeded;
-    state.level++;
-    state.xpNeeded = Math.floor(state.xpNeeded * 1.22);
-    state.energy = state.maxEnergy;
 
-    showToast(`🎉 Новый уровень: ${state.level}!`);
+    state.xp -= state.xpNeeded;
+
+    state.level++;
+
+    state.xpNeeded =
+      Math.floor(
+        state.xpNeeded * 1.2
+      );
+
+    state.energy =
+      state.maxEnergy;
+
+    showToast(
+      `🎉 Новый уровень: ${state.level}`
+    );
   }
 
   saveState();
 }
 
 function spendEnergy(amount) {
+
   if (state.energy < amount) {
-    showToast("⚡ Недостаточно энергии");
+
+    showToast(
+      "⚡ Недостаточно энергии"
+    );
+
     return false;
   }
 
   state.energy -= amount;
+
   saveState();
+
   return true;
 }
 
+/* =========================
+   TELEGRAM
+========================= */
+
+function initTelegram() {
+
+  try {
+
+    if (
+      window.Telegram &&
+      window.Telegram.WebApp
+    ) {
+
+      const tg =
+        window.Telegram.WebApp;
+
+      tg.ready();
+      tg.expand();
+
+      if (tg.setHeaderColor) {
+        tg.setHeaderColor("#080710");
+      }
+
+      if (tg.setBackgroundColor) {
+        tg.setBackgroundColor("#080710");
+      }
+    }
+
+  } catch (e) {
+    console.log(e);
+  }
+}
+
+/* =========================
+   HEADER
+========================= */
+
 function header(title = "Hero Clash") {
+
   return `
     <header class="topbar">
+
       <div class="brand">
-        <div class="brand-icon">⚔️</div>
-        <div>
-          <div class="brand-title">${title}</div>
-          <div class="brand-subtitle">HERO CLASH</div>
+
+        <div class="brand-icon">
+          ⚔️
         </div>
+
+        <div>
+          <div class="brand-title">
+            ${title}
+          </div>
+
+          <div class="brand-subtitle">
+            HERO CLASH
+          </div>
+        </div>
+
       </div>
 
       <div class="resources">
-        <div class="resource coin">
-          🪙 <span>${money(state.coins)}</span>
+
+        <div class="resource">
+          🪙 ${money(state.coins)}
         </div>
 
-        <div class="resource gem">
-          💎 <span>${state.gems}</span>
+        <div class="resource">
+          💎 ${state.gems}
         </div>
 
-        <div class="resource energy">
-          ⚡ <span>${state.energy}/${state.maxEnergy}</span>
+        <div class="resource">
+          ⚡ ${state.energy}/${state.maxEnergy}
         </div>
+
       </div>
+
     </header>
   `;
 }
 
-function bottomNav(active = "home") {
+/* =========================
+   NAV
+========================= */
+
+function bottomNav(active) {
+
   return `
     <nav class="bottom-nav">
 
-      <button class="${active === "home" ? "active" : ""}" onclick="home()">
+      <button
+        class="${active === "home" ? "active" : ""}"
+        onclick="home()"
+      >
         <span>🏠</span>
         <small>Главная</small>
       </button>
 
-      <button class="${active === "heroes" ? "active" : ""}" onclick="heroesPage()">
+      <button
+        class="${active === "heroes" ? "active" : ""}"
+        onclick="heroesPage()"
+      >
         <span>🧬</span>
         <small>Герои</small>
       </button>
 
-      <button class="battle-nav ${active === "battle" ? "active" : ""}" onclick="battle()">
+      <button
+        class="battle-nav ${active === "battle" ? "active" : ""}"
+        onclick="mapPage()"
+      >
         <span>⚔️</span>
         <small>Бой</small>
       </button>
 
-      <button class="${active === "rewards" ? "active" : ""}" onclick="rewards()">
+      <button
+        class="${active === "rewards" ? "active" : ""}"
+        onclick="rewards()"
+      >
         <span>🎁</span>
         <small>Награды</small>
       </button>
 
-      <button class="${active === "shop" ? "active" : ""}" onclick="shop()">
+      <button
+        class="${active === "shop" ? "active" : ""}"
+        onclick="shop()"
+      >
         <span>🛍️</span>
         <small>Магазин</small>
       </button>
@@ -244,54 +428,99 @@ function bottomNav(active = "home") {
   `;
 }
 
+/* =========================
+   HOME
+========================= */
+
 function home() {
-  const progress = Math.min(
-    100,
-    Math.floor((state.xp / state.xpNeeded) * 100)
-  );
+
+  const progress =
+    Math.min(
+      100,
+      Math.floor(
+        state.xp /
+        state.xpNeeded *
+        100
+      )
+    );
 
   app.innerHTML = `
+
     ${header()}
 
     <main class="page">
 
       <section class="hero-banner">
-        <div class="banner-content">
-          <div class="eyebrow">SEASON 01</div>
-          <h1>CLASH<br><span>OF HEROES</span></h1>
-          <p>Собирай команду. Побеждай врагов. Стань легендой.</p>
 
-          <button class="primary-btn" onclick="mapPage()">
-            ⚔️ ИГРАТЬ
+        <div class="banner-content">
+
+          <div class="eyebrow">
+            SEASON 01
+          </div>
+
+          <h1>
+            CLASH<br>
+            <span>OF HEROES</span>
+          </h1>
+
+          <p>
+            Собери команду героев
+            и сразись с монстрами
+            всех миров.
+          </p>
+
+          <button
+            class="primary-btn"
+            onclick="mapPage()"
+          >
+            ⚔️ НАЧАТЬ БОЙ
           </button>
+
         </div>
 
         <div class="banner-character">
           ✨
         </div>
+
       </section>
 
       <section class="level-card">
+
         <div class="level-top">
+
           <div>
-            <span class="muted">УРОВЕНЬ</span>
-            <strong>LVL ${state.level}</strong>
+            <span class="muted">
+              УРОВЕНЬ
+            </span>
+
+            <strong>
+              LVL ${state.level}
+            </strong>
           </div>
 
           <div class="xp-text">
-            ${state.xp} / ${state.xpNeeded} XP
+            ${state.xp}/${state.xpNeeded} XP
           </div>
+
         </div>
 
         <div class="xp-bar">
-          <div style="width:${progress}%"></div>
+          <div
+            style="width:${progress}%"
+          ></div>
         </div>
+
       </section>
 
-      <section class="section-title">
-        <h2>Твой прогресс</h2>
-        <span>⚡ ${totalPower()} POWER</span>
-      </section>
+      <div class="section-title">
+        <h2>
+          Твой прогресс
+        </h2>
+
+        <span>
+          ⚡ ${totalPower()} POWER
+        </span>
+      </div>
 
       <section class="stats-grid">
 
@@ -308,32 +537,62 @@ function home() {
         </div>
 
         <div class="stat-card">
-          <span>💎</span>
-          <strong>${state.gems}</strong>
-          <small>Кристаллы</small>
+          <span>🌍</span>
+          <strong>${state.unlockedWorld + 1}</strong>
+          <small>Миры</small>
         </div>
 
       </section>
 
       <section class="event-card">
+
         <div>
-          <span class="event-label">🔥 LIMITED EVENT</span>
-          <h3>Неоновая охота</h3>
-          <p>Победи 10 врагов и получи 5000 🪙</p>
+
+          <span class="event-label">
+            🔥 LIMITED EVENT
+          </span>
+
+          <h3>
+            Неоновая охота
+          </h3>
+
+          <p>
+            Победи 10 врагов
+            и получи 5000 🪙
+          </p>
+
         </div>
 
-        <div class="event-icon">🎯</div>
+        <div class="event-icon">
+          🎯
+        </div>
+
       </section>
 
-      <section class="section-title">
-        <h2>Быстрый старт</h2>
-      </section>
+      <div class="section-title">
+        <h2>
+          Быстрый старт
+        </h2>
+      </div>
 
       <div class="quick-actions">
-        <button onclick="mapPage()">🗺️ Карта</button>
-        <button onclick="heroesPage()">🧬 Герои</button>
-        <button onclick="rewards()">🎁 Награды</button>
-        <button onclick="shop()">🛍️ Магазин</button>
+
+        <button onclick="mapPage()">
+          🗺️ Карта
+        </button>
+
+        <button onclick="heroesPage()">
+          🧬 Герои
+        </button>
+
+        <button onclick="rewards()">
+          🎁 Награды
+        </button>
+
+        <button onclick="shop()">
+          🛍️ Магазин
+        </button>
+
       </div>
 
     </main>
@@ -344,56 +603,124 @@ function home() {
   window.scrollTo(0, 0);
 }
 
+/* =========================
+   WORLD MAP
+========================= */
+
 function mapPage() {
+
   app.innerHTML = `
+
     ${header("Карта")}
 
     <main class="page">
 
       <div class="page-heading">
-        <span class="eyebrow">WORLD MAP</span>
-        <h1>Выбери мир</h1>
-        <p>Исследуй новые зоны и сражайся с боссами.</p>
+
+        <div class="eyebrow">
+          WORLD MAP
+        </div>
+
+        <h1>
+          Миры
+        </h1>
+
+        <p>
+          Проходи этапы,
+          побеждай боссов
+          и открывай новые миры.
+        </p>
+
       </div>
 
       <div class="zones">
 
-        ${zones.map((zone, index) => {
+        ${worlds.map(world => {
 
-          const unlocked = state.level >= zone.level;
+          const unlocked =
+            state.level >= world.level ||
+            world.id <= state.unlockedWorld;
+
+          const completed =
+            Array.from(
+              { length: 10 },
+              (_, i) =>
+                isStageCompleted(
+                  world.id,
+                  i + 1
+                )
+            ).filter(Boolean).length;
 
           return `
+
             <button
               class="zone-card ${unlocked ? "" : "locked"}"
-              onclick="${unlocked ? `startZone(${index})` : `lockedZone(${zone.level})`}"
+              onclick="
+                ${
+                  unlocked
+                    ? `openWorld(${world.id})`
+                    : `lockedWorld(${world.level})`
+                }
+              "
             >
 
               <div
                 class="zone-art"
-                style="--zone-color:${zone.color}"
+                style="
+                  --zone-color:${world.color};
+                  background:
+                    radial-gradient(
+                      circle at center,
+                      ${world.color}22,
+                      transparent 60%
+                    ),
+                    #11101a;
+                "
               >
-                <span>${zone.icon}</span>
+
+                <div class="zone-number">
+                  WORLD ${world.id + 1}
+                </div>
+
+                <span>
+                  ${world.icon}
+                </span>
 
                 ${
                   !unlocked
                     ? `<div class="lock">🔒</div>`
                     : ""
                 }
+
               </div>
 
               <div class="zone-info">
+
                 <div>
-                  <small>МИР ${index + 1}</small>
-                  <h3>${zone.name}</h3>
+
+                  <small>
+                    ${world.boss}
+                  </small>
+
+                  <h3>
+                    ${world.name}
+                  </h3>
+
                 </div>
 
                 <div class="zone-stage">
-                  ${unlocked ? `Этап ${index === state.zone ? state.stage : 1}` : `LVL ${zone.level}`}
+                  ${
+                    unlocked
+                      ? `${completed}/10`
+                      : `LVL ${world.level}`
+                  }
                 </div>
+
               </div>
 
             </button>
           `;
+
         }).join("")}
 
       </div>
@@ -406,137 +733,496 @@ function mapPage() {
   window.scrollTo(0, 0);
 }
 
-function startZone(index) {
-  state.zone = index;
-  state.stage = 1;
+/* =========================
+   WORLD
+========================= */
+
+function openWorld(worldId) {
+
+  state.currentWorld =
+    worldId;
+
   saveState();
 
-  battle();
+  renderStages();
 }
 
-function lockedZone(level) {
-  showToast(`🔒 Откроется на уровне ${level}`);
+function lockedWorld(level) {
+
+  showToast(
+    `🔒 Откроется на уровне ${level}`
+  );
 }
 
-function battle() {
-  if (!spendEnergy(1)) return;
+function renderStages() {
 
-  const zone = zones[state.zone];
+  const world =
+    worlds[state.currentWorld];
 
-  const stageMultiplier = 1 + (state.stage - 1) * 0.22;
+  app.innerHTML = `
+
+    ${header(world.name)}
+
+    <main class="page">
+
+      <div class="page-heading">
+
+        <div class="eyebrow">
+          ${world.icon} WORLD ${world.id + 1}
+        </div>
+
+        <h1>
+          ${world.name}
+        </h1>
+
+        <p>
+          Босс мира:
+          <b>${world.boss}</b>
+        </p>
+
+      </div>
+
+      <div class="stages">
+
+        ${Array.from(
+          { length: 10 },
+          (_, i) => {
+
+            const stage = i + 1;
+
+            const completed =
+              isStageCompleted(
+                world.id,
+                stage
+              );
+
+            const unlocked =
+              stageUnlocked(
+                world.id,
+                stage
+              );
+
+            const boss =
+              stage === 10;
+
+            return `
+
+              <button
+                class="zone-card ${
+                  unlocked ? "" : "locked"
+                }"
+                onclick="
+                  ${
+                    unlocked
+                      ? `startStage(${stage})`
+                      : `lockedStage(${stage})`
+                  }
+                "
+              >
+
+                <div
+                  class="zone-art"
+                  style="
+                    --zone-color:${world.color};
+                    background:
+                      radial-gradient(
+                        circle,
+                        ${world.color}20,
+                        transparent 65%
+                      ),
+                      #11101a;
+                  "
+                >
+
+                  <div class="zone-number">
+                    STAGE ${stage}
+                  </div>
+
+                  <span>
+                    ${
+                      completed
+                        ? "🏆"
+                        : boss
+                          ? world.bossIcon
+                          : "⚔️"
+                    }
+                  </span>
+
+                  ${
+                    !unlocked
+                      ? `<div class="lock">🔒</div>`
+                      : ""
+                  }
+
+                </div>
+
+                <div class="zone-info">
+
+                  <div>
+
+                    <small>
+                      ${
+                        boss
+                          ? "BOSS"
+                          : "STAGE"
+                      }
+                    </small>
+
+                    <h3>
+                      ${
+                        boss
+                          ? world.boss
+                          : `Этап ${stage}`
+                      }
+                    </h3>
+
+                  </div>
+
+                  <div class="zone-stage">
+                    ${
+                      completed
+                        ? "✓"
+                        : unlocked
+                          ? "▶"
+                          : "🔒"
+                    }
+                  </div>
+
+                </div>
+
+              </button>
+
+            `;
+          }
+        ).join("")}
+
+      </div>
+
+    </main>
+
+    ${bottomNav("battle")}
+  `;
+
+  window.scrollTo(0, 0);
+}
+
+function lockedStage(stage) {
+
+  showToast(
+    `🔒 Сначала пройди этап ${stage - 1}`
+  );
+}
+
+/* =========================
+   START STAGE
+========================= */
+
+function startStage(stage) {
+
+  if (!stageUnlocked(
+    state.currentWorld,
+    stage
+  )) {
+
+    lockedStage(stage);
+
+    return;
+  }
+
+  if (!spendEnergy(1)) {
+    return;
+  }
+
+  state.currentStage =
+    stage;
+
+  const world =
+    worlds[state.currentWorld];
+
+  const boss =
+    stage === 10;
+
+  const difficulty =
+    1 +
+    state.currentWorld * .35 +
+    (stage - 1) * .18;
+
+  const baseHP =
+    boss
+      ? 2600
+      : 1000;
+
+  const enemyMaxHP =
+    Math.floor(
+      baseHP *
+      difficulty +
+      state.level * 70
+    );
 
   battleState = {
-    enemyHp: Math.floor(900 * stageMultiplier + state.level * 55),
-    enemyMaxHp: Math.floor(900 * stageMultiplier + state.level * 55),
+
+    enemyHp: enemyMaxHP,
+
+    enemyMaxHp: enemyMaxHP,
+
     teamHp: 100,
+
+    maxTeamHp: 100,
+
+    cooldowns: [0,0,0,0],
+
     turn: true,
-    skillCooldowns: [0, 0, 0, 0],
-    battleOver: false
+
+    finished: false
   };
 
   renderBattle();
 }
 
+/* =========================
+   BATTLE
+========================= */
+
 function renderBattle() {
-  const zone = zones[state.zone];
 
-  const hpPercent = Math.max(
-    0,
-    (battleState.enemyHp / battleState.enemyMaxHp) * 100
-  );
+  const world =
+    worlds[state.currentWorld];
 
-  const teamPercent = Math.max(
-    0,
-    battleState.teamHp
-  );
+  const boss =
+    state.currentStage === 10;
+
+  const hpPercent =
+    Math.max(
+      0,
+      battleState.enemyHp /
+      battleState.enemyMaxHp *
+      100
+    );
+
+  const teamPercent =
+    Math.max(
+      0,
+      battleState.teamHp
+    );
 
   app.innerHTML = `
+
     <div class="battle-screen">
 
       <div class="battle-top">
-        <button class="back-btn" onclick="home()">←</button>
+
+        <button
+          class="back-btn"
+          onclick="renderStages()"
+        >
+          ←
+        </button>
 
         <div>
-          <small>${zone.name}</small>
-          <strong>ЭТАП ${state.stage}</strong>
+
+          <small>
+            ${world.name}
+          </small>
+
+          <strong>
+            ${
+              boss
+                ? "👑 BOSS"
+                : `ЭТАП ${state.currentStage}`
+            }
+          </strong>
+
         </div>
 
         <div class="battle-energy">
           ⚡ ${state.energy}
         </div>
+
       </div>
 
       <div class="battle-arena">
 
         <div class="enemy-label">
-          <span>👹</span>
+
+          <span>
+            ${boss
+              ? world.bossIcon
+              : "👹"
+            }
+          </span>
+
           <div>
-            <strong>${zone.enemy}</strong>
-            <small>LVL ${state.level + 2}</small>
+
+            <strong>
+              ${
+                boss
+                  ? world.boss
+                  : `${world.boss} - ${state.currentStage}`
+              }
+            </strong>
+
+            <small>
+              LVL ${state.level + state.currentWorld + 2}
+            </small>
+
           </div>
+
         </div>
 
         <div class="enemy">
-          <div class="enemy-glow"></div>
-          <div class="enemy-emoji">👹</div>
+
+          <div class="enemy-emoji">
+            ${
+              boss
+                ? world.bossIcon
+                : "👹"
+            }
+          </div>
+
         </div>
 
         <div class="hp-wrapper">
+
           <div class="hp-text">
-            <span>HP</span>
-            <b>${battleState.enemyHp}</b>
+
+            <span>
+              HP
+            </span>
+
+            <b>
+              ${money(
+                Math.max(
+                  0,
+                  battleState.enemyHp
+                )
+              )}
+            </b>
+
           </div>
 
           <div class="hp-bar">
-            <div style="width:${hpPercent}%"></div>
+
+            <div
+              style="
+                width:${hpPercent}%
+              "
+            ></div>
+
           </div>
+
         </div>
 
-        <div class="vs">VS</div>
+        <div class="vs">
+          VS
+        </div>
 
         <div class="player-team">
-          <div class="team-hero main-hero">✨</div>
-          <div class="team-hero">🔥</div>
-          <div class="team-hero">🌑</div>
-          <div class="team-hero">⚡</div>
+
+          <div class="team-hero main-hero">
+            ✨
+          </div>
+
+          <div class="team-hero">
+            🔥
+          </div>
+
+          <div class="team-hero">
+            🌑
+          </div>
+
+          <div class="team-hero">
+            ⚡
+          </div>
+
         </div>
 
-        <div class="team-hp">
+        <div
+          class="hp-wrapper"
+          style="margin-top:10px"
+        >
+
           <div class="hp-text">
-            <span>КОМАНДА</span>
-            <b>${Math.floor(battleState.teamHp)}%</b>
+
+            <span>
+              КОМАНДА
+            </span>
+
+            <b>
+              ${Math.floor(
+                battleState.teamHp
+              )}%
+            </b>
+
           </div>
 
           <div class="hp-bar team">
-            <div style="width:${teamPercent}%"></div>
+
+            <div
+              style="
+                width:${teamPercent}%
+              "
+            ></div>
+
           </div>
+
         </div>
 
       </div>
 
       <div class="battle-controls">
 
-        <button class="attack-btn" onclick="attack()">
+        <button
+          class="attack-btn"
+          onclick="attack()"
+        >
           ⚔️ АТАКА
         </button>
 
         <div class="skills">
 
-          ${heroes.lumi.skills.map((skill, i) => `
-            <button
-              class="skill ${battleState.skillCooldowns[i] > 0 ? "cooldown" : ""}"
-              onclick="useSkill(${i})"
-              ${battleState.skillCooldowns[i] > 0 ? "disabled" : ""}
-            >
-              <span>${["✨", "🛡️", "💥", "🌟"][i]}</span>
-              <small>${skill}</small>
-              ${
-                battleState.skillCooldowns[i] > 0
-                  ? `<b>${battleState.skillCooldowns[i]}</b>`
-                  : ""
-              }
-            </button>
-          `).join("")}
+          ${heroes.lumi.skills.map(
+            (skill, index) => {
+
+              const cooldown =
+                battleState.cooldowns[index];
+
+              return `
+
+                <button
+                  class="skill ${
+                    cooldown > 0
+                      ? "cooldown"
+                      : ""
+                  }"
+                  onclick="useSkill(${index})"
+                  ${
+                    cooldown > 0
+                      ? "disabled"
+                      : ""
+                  }
+                >
+
+                  <span>
+                    ${
+                      ["✨","🛡️","💥","🌟"][index]
+                    }
+                  </span>
+
+                  <small>
+                    ${skill}
+                  </small>
+
+                  ${
+                    cooldown > 0
+                      ? `<b>${cooldown}</b>`
+                      : ""
+                  }
+
+                </button>
+
+              `;
+            }
+          ).join("")}
 
         </div>
 
@@ -545,248 +1231,577 @@ function renderBattle() {
     </div>
   `;
 
-  window.scrollTo(0, 0);
+  window.scrollTo(0,0);
 }
+
+/* =========================
+   ATTACK
+========================= */
 
 function attack() {
-  if (battleState.battleOver) return;
 
-  const damage = Math.floor(
-    heroPower("lumi") * (0.75 + Math.random() * 0.45)
-  );
-
-  battleState.enemyHp -= damage;
-
-  showToast(`⚔️ -${damage} HP`);
-
-  if (battleState.enemyHp <= 0) {
-    winBattle();
+  if (battleState.finished) {
     return;
   }
 
-  enemyTurn();
-}
+  let damage =
+    heroPower("lumi") *
+    (.75 + Math.random() * .45);
 
-function useSkill(index) {
-  if (battleState.battleOver) return;
+  const critical =
+    Math.random() < .12;
 
-  if (battleState.skillCooldowns[index] > 0) {
-    showToast("⏳ Навык ещё перезаряжается");
-    return;
-  }
+  if (critical) {
+    damage *= 2;
 
-  const multipliers = [1.5, 1.2, 1.8, 2.2];
-
-  const damage = Math.floor(
-    heroPower("lumi") * multipliers[index]
-  );
-
-  battleState.enemyHp -= damage;
-
-  battleState.skillCooldowns[index] =
-    index === 3 ? 4 : 2;
-
-  showToast(`💥 ${heroes.lumi.skills[index]}: -${damage}`);
-
-  if (battleState.enemyHp <= 0) {
-    winBattle();
-    return;
-  }
-
-  enemyTurn();
-}
-
-function enemyTurn() {
-  if (battleState.battleOver) return;
-
-  const damage = Math.floor(
-    5 + Math.random() * 9 + state.stage * 2
-  );
-
-  battleState.teamHp -= damage;
-
-  battleState.skillCooldowns =
-    battleState.skillCooldowns.map(value =>
-      Math.max(0, value - 1)
+    showToast(
+      `💥 КРИТИЧЕСКИЙ УДАР! -${Math.floor(damage)}`
     );
 
-  if (battleState.teamHp <= 0) {
+  } else {
+
+    showToast(
+      `⚔️ -${Math.floor(damage)} HP`
+    );
+  }
+
+  battleState.enemyHp -=
+    Math.floor(damage);
+
+  if (
+    battleState.enemyHp <= 0
+  ) {
+
+    battleState.enemyHp = 0;
+
+    winBattle();
+
+    return;
+  }
+
+  enemyTurn();
+}
+
+/* =========================
+   SKILLS
+========================= */
+
+function useSkill(index) {
+
+  if (battleState.finished) {
+    return;
+  }
+
+  if (
+    battleState.cooldowns[index] > 0
+  ) {
+
+    showToast(
+      "⏳ Способность перезаряжается"
+    );
+
+    return;
+  }
+
+  const multipliers =
+    [1.45, 1.2, 1.8, 2.3];
+
+  let damage =
+    heroPower("lumi") *
+    multipliers[index];
+
+  if (index === 1) {
+
+    battleState.teamHp =
+      Math.min(
+        100,
+        battleState.teamHp + 18
+      );
+
+    showToast(
+      "🛡️ Щит восстановил HP"
+    );
+
+  } else {
+
+    battleState.enemyHp -=
+      Math.floor(damage);
+
+    showToast(
+      `💥 ${heroes.lumi.skills[index]} -${Math.floor(damage)}`
+    );
+  }
+
+  battleState.cooldowns[index] =
+    index === 3
+      ? 4
+      : 2;
+
+  if (
+    battleState.enemyHp <= 0
+  ) {
+
+    battleState.enemyHp = 0;
+
+    winBattle();
+
+    return;
+  }
+
+  enemyTurn();
+}
+
+/* =========================
+   ENEMY
+========================= */
+
+function enemyTurn() {
+
+  if (battleState.finished) {
+    return;
+  }
+
+  const damage =
+    Math.floor(
+      5 +
+      Math.random() * 10 +
+      state.currentWorld * 2 +
+      state.currentStage
+    );
+
+  battleState.teamHp -=
+    damage;
+
+  battleState.cooldowns =
+    battleState.cooldowns.map(
+      value =>
+        Math.max(
+          0,
+          value - 1
+        )
+    );
+
+  if (
+    battleState.teamHp <= 0
+  ) {
+
     battleState.teamHp = 0;
+
     defeatBattle();
+
     return;
   }
 
   renderBattle();
 }
 
-function winBattle() {
-  battleState.battleOver = true;
+/* =========================
+   VICTORY
+========================= */
 
-  const coins = 500 + state.stage * 120;
-  const xp = 80 + state.stage * 20;
+function winBattle() {
+
+  battleState.finished = true;
+
+  const world =
+    worlds[state.currentWorld];
+
+  const boss =
+    state.currentStage === 10;
+
+  const coins =
+    boss
+      ? 2500 + state.currentWorld * 800
+      : 500 +
+        state.currentStage * 120;
+
+  const gems =
+    boss
+      ? 8
+      : state.currentStage % 3 === 0
+        ? 2
+        : 0;
+
+  const xp =
+    boss
+      ? 250
+      : 80 +
+        state.currentStage * 20;
 
   state.coins += coins;
+  state.gems += gems;
+
   state.wins++;
   state.battles++;
+
+  state.completedStages[
+    stageKey(
+      state.currentWorld,
+      state.currentStage
+    )
+  ] = true;
+
+  if (
+    state.currentWorld <
+    worlds.length - 1 &&
+    state.currentStage === 10
+  ) {
+
+    state.unlockedWorld =
+      Math.max(
+        state.unlockedWorld,
+        state.currentWorld + 1
+      );
+  }
 
   addXP(xp);
 
   saveState();
 
   app.innerHTML = `
-    <div class="result-screen victory">
 
-      <div class="result-glow">🏆</div>
+    <div class="result-screen">
 
-      <div class="result-label">VICTORY</div>
+      <div class="result-glow">
+        ${boss ? "👑" : "🏆"}
+      </div>
 
-      <h1>ПОБЕДА!</h1>
+      <div class="result-label">
+        ${boss ? "BOSS DEFEATED" : "VICTORY"}
+      </div>
 
-      <p>Враг повержен.</p>
+      <h1>
+        ПОБЕДА!
+      </h1>
+
+      <p>
+        ${
+          boss
+            ? `Босс ${world.boss} повержен!`
+            : "Враг уничтожен."
+        }
+      </p>
 
       <div class="reward-box">
 
         <div>
+
           <span>🪙</span>
-          <strong>+${money(coins)}</strong>
-          <small>Монеты</small>
+
+          <strong>
+            +${money(coins)}
+          </strong>
+
+          <small>
+            Монеты
+          </small>
+
         </div>
 
         <div>
+
           <span>⭐</span>
-          <strong>+${xp}</strong>
-          <small>Опыт</small>
+
+          <strong>
+            +${xp}
+          </strong>
+
+          <small>
+            Опыт
+          </small>
+
         </div>
+
+        ${
+          gems > 0
+            ? `
+              <div>
+
+                <span>💎</span>
+
+                <strong>
+                  +${gems}
+                </strong>
+
+                <small>
+                  Gems
+                </small>
+
+              </div>
+            `
+            : ""
+        }
 
       </div>
 
-      <button class="primary-btn" onclick="nextStage()">
-        ПРОДОЛЖИТЬ →
+      <button
+        class="primary-btn"
+        onclick="nextStage()"
+      >
+        ${
+          state.currentStage === 10
+            ? "ВЕРНУТЬСЯ К КАРТЕ →"
+            : "СЛЕДУЮЩИЙ ЭТАП →"
+        }
       </button>
 
-      <button class="secondary-btn" onclick="home()">
+      <button
+        class="secondary-btn"
+        onclick="home()"
+      >
         На главную
       </button>
 
     </div>
   `;
-
-  saveState();
 }
 
+/* =========================
+   NEXT STAGE
+========================= */
+
 function nextStage() {
-  state.stage++;
 
-  if (state.stage > 10) {
-    state.stage = 1;
+  if (
+    state.currentStage >= 10
+  ) {
 
-    if (state.zone < zones.length - 1) {
-      state.zone++;
+    if (
+      state.currentWorld <
+      worlds.length - 1
+    ) {
+
+      state.currentWorld++;
+      state.currentStage = 1;
+
+    } else {
+
+      state.currentStage = 1;
     }
+
+  } else {
+
+    state.currentStage++;
   }
 
   saveState();
+
   mapPage();
+
+  setTimeout(() => {
+
+    if (
+      state.currentWorld <
+      worlds.length
+    ) {
+
+      renderStages();
+    }
+
+  }, 50);
 }
 
+/* =========================
+   DEFEAT
+========================= */
+
 function defeatBattle() {
-  battleState.battleOver = true;
+
+  battleState.finished = true;
 
   state.battles++;
+
   saveState();
 
   app.innerHTML = `
-    <div class="result-screen defeat">
 
-      <div class="result-glow">💀</div>
+    <div class="result-screen">
 
-      <div class="result-label">DEFEAT</div>
+      <div class="result-glow">
+        💀
+      </div>
 
-      <h1>ПОРАЖЕНИЕ</h1>
+      <div class="result-label">
+        DEFEAT
+      </div>
 
-      <p>Твоя команда потерпела поражение.</p>
+      <h1>
+        ПОРАЖЕНИЕ
+      </h1>
+
+      <p>
+        Команда потерпела поражение.
+      </p>
 
       <div class="reward-box">
 
         <div>
+
           <span>⚔️</span>
-          <strong>Попробуй снова</strong>
-          <small>Тренируй героев</small>
+
+          <strong>
+            ${state.currentStage}
+          </strong>
+
+          <small>
+            Этап
+          </small>
+
+        </div>
+
+        <div>
+
+          <span>💪</span>
+
+          <strong>
+            ${totalPower()}
+          </strong>
+
+          <small>
+            Сила команды
+          </small>
+
         </div>
 
       </div>
 
-      <button class="primary-btn" onclick="home()">
-        ВЕРНУТЬСЯ
+      <button
+        class="primary-btn"
+        onclick="retryStage()"
+      >
+        🔄 ПОПРОБОВАТЬ СНОВА
+      </button>
+
+      <button
+        class="secondary-btn"
+        onclick="renderStages()"
+      >
+        Вернуться к карте
       </button>
 
     </div>
   `;
 }
 
+function retryStage() {
+
+  startStage(
+    state.currentStage
+  );
+}
+
+/* =========================
+   HEROES
+========================= */
+
 function heroesPage() {
+
   app.innerHTML = `
+
     ${header("Герои")}
 
     <main class="page">
 
       <div class="page-heading">
-        <span class="eyebrow">COLLECTION</span>
-        <h1>Твои герои</h1>
-        <p>Прокачивай персонажей и увеличивай силу команды.</p>
+
+        <div class="eyebrow">
+          COLLECTION
+        </div>
+
+        <h1>
+          Твои герои
+        </h1>
+
+        <p>
+          Улучшай героев
+          и увеличивай силу команды.
+        </p>
+
       </div>
 
       <div class="power-banner">
+
         <div>
-          <small>ОБЩАЯ СИЛА</small>
-          <strong>⚡ ${totalPower()}</strong>
+
+          <small>
+            ОБЩАЯ СИЛА
+          </small>
+
+          <strong>
+            ⚡ ${totalPower()}
+          </strong>
+
         </div>
 
-        <div>LVL ${state.level}</div>
+        <div>
+          LVL ${state.level}
+        </div>
+
       </div>
 
       <div class="heroes-grid">
 
-        ${Object.entries(heroes).map(([id, hero]) => {
+        ${Object.entries(heroes)
+          .map(([id, hero]) => {
 
-          const lvl = heroLevel(id);
-          const power = heroPower(id);
-          const cost = Math.floor(1000 * Math.pow(1.35, lvl - 1));
+            const lvl =
+              heroLevel(id);
 
-          return `
-            <div class="hero-card">
+            const power =
+              heroPower(id);
 
-              <div
-                class="hero-avatar"
-                style="--hero-color:${hero.color}"
-              >
-                ${hero.emoji}
+            const cost =
+              Math.floor(
+                1000 *
+                Math.pow(
+                  1.35,
+                  lvl - 1
+                )
+              );
+
+            return `
+
+              <div class="hero-card">
+
+                <div
+                  class="hero-avatar"
+                  style="
+                    --hero-color:${hero.color}
+                  "
+                >
+                  ${hero.emoji}
+                </div>
+
+                <div class="hero-rarity">
+                  ${hero.rarity}
+                </div>
+
+                <h3>
+                  ${hero.name}
+                </h3>
+
+                <div class="hero-level">
+                  LEVEL ${lvl}
+                </div>
+
+                <div class="hero-power">
+                  ⚡ ${power}
+                </div>
+
+                <button
+                  class="upgrade-btn"
+                  onclick="
+                    upgradeHero('${id}')
+                  "
+                >
+                  ⬆️ ${money(cost)} 🪙
+                </button>
+
               </div>
 
-              <div class="hero-rarity">
-                ${hero.rarity}
-              </div>
-
-              <h3>${hero.name}</h3>
-
-              <div class="hero-level">
-                LEVEL ${lvl}
-              </div>
-
-              <div class="hero-power">
-                ⚡ ${power}
-              </div>
-
-              <button
-                class="upgrade-btn"
-                onclick="upgradeHero('${id}')"
-              >
-                ⬆️ ${money(cost)} 🪙
-              </button>
-
-            </div>
-          `;
-        }).join("")}
+            `;
+          })
+          .join("")}
 
       </div>
 
@@ -795,53 +1810,103 @@ function heroesPage() {
     ${bottomNav("heroes")}
   `;
 
-  window.scrollTo(0, 0);
+  window.scrollTo(0,0);
 }
 
 function upgradeHero(id) {
-  const lvl = heroLevel(id);
-  const cost = Math.floor(1000 * Math.pow(1.35, lvl - 1));
+
+  const lvl =
+    heroLevel(id);
+
+  const cost =
+    Math.floor(
+      1000 *
+      Math.pow(
+        1.35,
+        lvl - 1
+      )
+    );
 
   if (state.coins < cost) {
-    showToast("🪙 Недостаточно монет");
+
+    showToast(
+      "🪙 Недостаточно монет"
+    );
+
     return;
   }
 
   state.coins -= cost;
-  state.heroLevels[id] = lvl + 1;
+
+  state.heroLevels[id] =
+    lvl + 1;
 
   saveState();
 
-  showToast(`⬆️ ${heroes[id].name} теперь LVL ${lvl + 1}`);
+  showToast(
+    `⬆️ ${heroes[id].name} LVL ${lvl + 1}`
+  );
 
   heroesPage();
 }
 
+/* =========================
+   REWARDS
+========================= */
+
 function rewards() {
-  const today = new Date().toISOString().slice(0, 10);
+
+  const today =
+    new Date()
+      .toISOString()
+      .slice(0,10);
 
   const canClaim =
     state.lastDaily !== today;
 
   app.innerHTML = `
+
     ${header("Награды")}
 
     <main class="page">
 
       <div class="page-heading">
-        <span class="eyebrow">REWARDS</span>
-        <h1>Награды</h1>
-        <p>Забирай ежедневные бонусы и выполняй задания.</p>
+
+        <div class="eyebrow">
+          REWARDS
+        </div>
+
+        <h1>
+          Награды
+        </h1>
+
+        <p>
+          Забирай ежедневные
+          бонусы и выполняй задания.
+        </p>
+
       </div>
 
       <section class="daily-card">
 
-        <div class="daily-icon">🎁</div>
+        <div class="daily-icon">
+          🎁
+        </div>
 
         <div class="daily-info">
-          <span>DAILY REWARD</span>
-          <h2>Ежедневный бонус</h2>
-          <p>500 🪙 + 2 💎</p>
+
+          <span>
+            DAILY REWARD
+          </span>
+
+          <h2>
+            Ежедневный бонус
+          </h2>
+
+          <p>
+            500 🪙 + 2 💎
+          </p>
+
         </div>
 
         <button
@@ -849,54 +1914,93 @@ function rewards() {
           onclick="claimDaily()"
           ${canClaim ? "" : "disabled"}
         >
-          ${canClaim ? "ЗАБРАТЬ" : "ЗАБРАНО"}
+          ${
+            canClaim
+              ? "ЗАБРАТЬ"
+              : "ЗАБРАНО"
+          }
         </button>
 
       </section>
 
-      <section class="section-title">
-        <h2>Задания</h2>
-      </section>
+      <div class="section-title">
+        <h2>
+          Задания
+        </h2>
+      </div>
 
       <div class="missions">
 
         <div class="mission">
-          <div class="mission-icon">⚔️</div>
+
+          <div class="mission-icon">
+            ⚔️
+          </div>
 
           <div class="mission-info">
-            <strong>Боец</strong>
-            <span>Проведи 3 битвы</span>
+
+            <strong>
+              Боец
+            </strong>
+
+            <span>
+              Проведи 3 битвы
+            </span>
+
           </div>
 
           <div class="mission-reward">
             +1000 🪙
           </div>
+
         </div>
 
         <div class="mission">
-          <div class="mission-icon">🏆</div>
+
+          <div class="mission-icon">
+            🏆
+          </div>
 
           <div class="mission-info">
-            <strong>Победитель</strong>
-            <span>Одержи 5 побед</span>
+
+            <strong>
+              Победитель
+            </strong>
+
+            <span>
+              Одержи 5 побед
+            </span>
+
           </div>
 
           <div class="mission-reward">
             +5 💎
           </div>
+
         </div>
 
         <div class="mission">
-          <div class="mission-icon">🧬</div>
+
+          <div class="mission-icon">
+            🧬
+          </div>
 
           <div class="mission-info">
-            <strong>Развитие</strong>
-            <span>Улучши героя</span>
+
+            <strong>
+              Развитие
+            </strong>
+
+            <span>
+              Улучши героя
+            </span>
+
           </div>
 
           <div class="mission-reward">
             +1500 🪙
           </div>
+
         </div>
 
       </div>
@@ -906,64 +2010,97 @@ function rewards() {
     ${bottomNav("rewards")}
   `;
 
-  window.scrollTo(0, 0);
+  window.scrollTo(0,0);
 }
 
 function claimDaily() {
-  const today = new Date().toISOString().slice(0, 10);
 
-  if (state.lastDaily === today) {
-    showToast("🎁 Ты уже забрал награду");
+  const today =
+    new Date()
+      .toISOString()
+      .slice(0,10);
+
+  if (
+    state.lastDaily === today
+  ) {
+
+    showToast(
+      "🎁 Уже забрано"
+    );
+
     return;
   }
 
   state.coins += 500;
   state.gems += 2;
+
   state.lastDaily = today;
 
   saveState();
 
-  showToast("🎁 +500 🪙 +2 💎");
+  showToast(
+    "🎁 +500 🪙 +2 💎"
+  );
 
   rewards();
 }
 
-function claimMission() {
-  state.coins += 1000;
-  saveState();
-
-  showToast("🏆 Награда получена");
-}
+/* =========================
+   SHOP
+========================= */
 
 function shop() {
+
   app.innerHTML = `
+
     ${header("Магазин")}
 
     <main class="page">
 
       <div class="page-heading">
-        <span class="eyebrow">MARKET</span>
-        <h1>Магазин</h1>
-        <p>Усиль свою команду и пополни ресурсы.</p>
+
+        <div class="eyebrow">
+          MARKET
+        </div>
+
+        <h1>
+          Магазин
+        </h1>
+
+        <p>
+          Ресурсы и усиления
+          для твоей команды.
+        </p>
+
       </div>
 
       <div class="shop-grid">
 
         <div class="shop-card featured">
 
-          <div class="shop-art">🎁</div>
+          <div class="shop-art">
+            🎁
+          </div>
 
-          <span class="shop-tag">BEST VALUE</span>
+          <span class="shop-tag">
+            BEST VALUE
+          </span>
 
-          <h3>Hero Chest</h3>
+          <h3>
+            Hero Chest
+          </h3>
 
-          <p>Случайная награда героя.</p>
+          <p>
+            Случайная награда.
+          </p>
 
           <div class="shop-price">
             1000 🪙
           </div>
 
-          <button onclick="buyChest()">
+          <button
+            onclick="buyChest()"
+          >
             КУПИТЬ
           </button>
 
@@ -971,17 +2108,25 @@ function shop() {
 
         <div class="shop-card">
 
-          <div class="shop-art">⚡</div>
+          <div class="shop-art">
+            ⚡
+          </div>
 
-          <h3>Energy Pack</h3>
+          <h3>
+            Energy Pack
+          </h3>
 
-          <p>+10 энергии.</p>
+          <p>
+            +10 энергии.
+          </p>
 
           <div class="shop-price">
             500 🪙
           </div>
 
-          <button onclick="buyEnergy()">
+          <button
+            onclick="buyEnergy()"
+          >
             КУПИТЬ
           </button>
 
@@ -989,17 +2134,51 @@ function shop() {
 
         <div class="shop-card">
 
-          <div class="shop-art">💎</div>
+          <div class="shop-art">
+            💎
+          </div>
 
-          <h3>Gem Pack</h3>
+          <h3>
+            Gem Pack
+          </h3>
 
-          <p>+10 кристаллов.</p>
+          <p>
+            +10 Gems.
+          </p>
 
           <div class="shop-price">
             1000 🪙
           </div>
 
-          <button onclick="buyGems()">
+          <button
+            onclick="buyGems()"
+          >
+            КУПИТЬ
+          </button>
+
+        </div>
+
+        <div class="shop-card">
+
+          <div class="shop-art">
+            ❤️
+          </div>
+
+          <h3>
+            Full Energy
+          </h3>
+
+          <p>
+            Полностью восстановит энергию.
+          </p>
+
+          <div class="shop-price">
+            750 🪙
+          </div>
+
+          <button
+            onclick="fullEnergy()"
+          >
             КУПИТЬ
           </button>
 
@@ -1012,57 +2191,95 @@ function shop() {
     ${bottomNav("shop")}
   `;
 
-  window.scrollTo(0, 0);
+  window.scrollTo(0,0);
 }
 
 function buyChest() {
+
   if (state.coins < 1000) {
-    showToast("🪙 Недостаточно монет");
+
+    showToast(
+      "🪙 Недостаточно монет"
+    );
+
     return;
   }
 
   state.coins -= 1000;
 
-  const rewards = [
-    ["coins", 2500],
-    ["gems", 8],
-    ["energy", 10]
-  ];
+  const roll =
+    Math.random();
 
-  const reward =
-    rewards[Math.floor(Math.random() * rewards.length)];
+  if (roll < .45) {
 
-  state[reward[0]] += reward[1];
+    state.coins += 2500;
+
+    showToast(
+      "🎁 +2500 🪙"
+    );
+
+  } else if (roll < .75) {
+
+    state.gems += 8;
+
+    showToast(
+      "🎁 +8 💎"
+    );
+
+  } else {
+
+    state.energy =
+      Math.min(
+        state.maxEnergy,
+        state.energy + 10
+      );
+
+    showToast(
+      "🎁 +10 ⚡"
+    );
+  }
 
   saveState();
-
-  showToast(`🎁 Ты получил +${reward[1]} ${reward[0]}`);
 
   shop();
 }
 
 function buyEnergy() {
+
   if (state.coins < 500) {
-    showToast("🪙 Недостаточно монет");
+
+    showToast(
+      "🪙 Недостаточно монет"
+    );
+
     return;
   }
 
   state.coins -= 500;
-  state.energy = Math.min(
-    state.maxEnergy,
-    state.energy + 10
-  );
+
+  state.energy =
+    Math.min(
+      state.maxEnergy,
+      state.energy + 10
+    );
 
   saveState();
 
-  showToast("⚡ +10 энергии");
+  showToast(
+    "⚡ +10 энергии"
+  );
 
   shop();
 }
 
 function buyGems() {
+
   if (state.coins < 1000) {
-    showToast("🪙 Недостаточно монет");
+
+    showToast(
+      "🪙 Недостаточно монет"
+    );
+
     return;
   }
 
@@ -1071,81 +2288,116 @@ function buyGems() {
 
   saveState();
 
-  showToast("💎 +10 кристаллов");
+  showToast(
+    "💎 +10 Gems"
+  );
 
   shop();
 }
 
+function fullEnergy() {
+
+  if (state.coins < 750) {
+
+    showToast(
+      "🪙 Недостаточно монет"
+    );
+
+    return;
+  }
+
+  state.coins -= 750;
+  state.energy =
+    state.maxEnergy;
+
+  saveState();
+
+  showToast(
+    "⚡ Энергия полностью восстановлена"
+  );
+
+  shop();
+}
+
+/* =========================
+   TOAST
+========================= */
+
 function showToast(message) {
-  const old = document.querySelector(".game-toast");
+
+  const old =
+    document.querySelector(
+      ".game-toast"
+    );
 
   if (old) {
     old.remove();
   }
 
-  const toast = document.createElement("div");
+  const toast =
+    document.createElement("div");
 
-  toast.className = "game-toast";
-  toast.textContent = message;
+  toast.className =
+    "game-toast";
 
-  document.body.appendChild(toast);
+  toast.textContent =
+    message;
+
+  document.body.appendChild(
+    toast
+  );
 
   setTimeout(() => {
     toast.classList.add("show");
   }, 10);
 
   setTimeout(() => {
-    toast.classList.remove("show");
+
+    toast.classList.remove(
+      "show"
+    );
 
     setTimeout(() => {
       toast.remove();
     }, 250);
+
   }, 1800);
 }
 
-function initTelegram() {
-  try {
-    if (
-      typeof window.Telegram !== "undefined" &&
-      window.Telegram.WebApp
-    ) {
-      const tg = window.Telegram.WebApp;
+/* =========================
+   GLOBAL FUNCTIONS
+========================= */
 
-      tg.ready();
-      tg.expand();
-
-      if (tg.setHeaderColor) {
-        tg.setHeaderColor("#090812");
-      }
-
-      if (tg.setBackgroundColor) {
-        tg.setBackgroundColor("#090812");
-      }
-    }
-  } catch (error) {
-    console.log("Telegram WebApp:", error);
-  }
-}
-
-/* Global functions for buttons */
 window.home = home;
 window.mapPage = mapPage;
-window.battle = battle;
+
+window.openWorld = openWorld;
+window.lockedWorld = lockedWorld;
+
+window.renderStages = renderStages;
+window.startStage = startStage;
+window.lockedStage = lockedStage;
+
 window.attack = attack;
 window.useSkill = useSkill;
+window.retryStage = retryStage;
+window.nextStage = nextStage;
+
 window.heroesPage = heroesPage;
 window.upgradeHero = upgradeHero;
+
 window.rewards = rewards;
 window.claimDaily = claimDaily;
-window.claimMission = claimMission;
+
 window.shop = shop;
 window.buyChest = buyChest;
 window.buyEnergy = buyEnergy;
 window.buyGems = buyGems;
-window.startZone = startZone;
-window.lockedZone = lockedZone;
-window.nextStage = nextStage;
+window.fullEnergy = fullEnergy;
 
-/* Start application */
+/* =========================
+   START
+========================= */
+
 initTelegram();
 home();
