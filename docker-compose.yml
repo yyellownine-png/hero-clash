@@ -1,0 +1,9 @@
+services:
+  neon-heroes:
+    build: .
+    ports: ["8000:8000"]
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      SECRET_KEY: ${SECRET_KEY:-change-me}
+    volumes:
+      - ./database:/app/database
